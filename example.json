@@ -1,0 +1,23 @@
+{
+    "url": "https://example.com",
+    "slug": "public",
+    "pin_mode": "BCM",
+    "interval": 60,
+    "services": [
+        {
+            "name": "kuma-uptime-beacon",
+            "pin": 1,
+            "enabled": true
+        },
+        {
+            "name": "another-service",
+            "pin": 2,
+            "enabled": false
+        },
+        {
+            "id": 3,
+            "pin": 3,
+            "enabled": true
+        }
+    ]
+}

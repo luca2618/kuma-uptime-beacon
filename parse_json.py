@@ -5,7 +5,7 @@ import time
 from typing import Any, Dict, Union
 import dotenv
 
-import argparse
+import sys
 
 try:
     import RPi.GPIO as GPIO
@@ -15,13 +15,25 @@ except ImportError:
 
 
 class StatusMonitor:
-    def __init__(self, base_url: str, slug: str):
+    def __init__(self, base_url: str, slug: str, services : list = [], pin_mode: str = "BCM"):
         self.base_url = base_url.rstrip("/")
         self.slug = slug
         self.name_to_id: Dict[str, int] = {}
         self.heartbeat_data: Dict[str, Any] = {}
         self._stop_event = threading.Event()
         self._thread: Union[threading.Thread, None] = None
+        self.services = services
+
+        self.fetch_status_page()
+
+        if pin_mode.upper() == "BCM":
+            GPIO.setmode(GPIO.BCM)
+        else:
+            GPIO.setmode(GPIO.BOARD)
+        
+
+        for service in self.services:
+            GPIO.setup(service["pin"], GPIO.OUT)
 
     def fetch_status_page(self) -> None:
         """Fetch and parse monitor name→id mapping."""
@@ -80,20 +92,35 @@ class StatusMonitor:
             self._thread.join()
             self._thread = None
 
+    def update_gpio(self) -> None:
+        """Setup GPIO pins for services."""
+        for service in self.services:
+            if service.get("enabled", False):
+                service_id = service.get("id") or self.name_to_id.get(service["name"])
+                pin = service["pin"]
+                if self.is_up(service_id):
+                    GPIO.output(pin, GPIO.HIGH)
+                else:
+                    GPIO.output(pin, GPIO.LOW)
+                
+
 
 # Example usage:
 if __name__ == "__main__":
     dotenv.load_dotenv()
-    base_url = dotenv.get_key(".env", "base_url")
-    slug = dotenv.get_key(".env", "slug")
-    monitor = StatusMonitor(base_url, slug)
-    monitor.fetch_status_page()
-    #monitor._run_periodic(interval=10)  # Initial run
-    monitor.start_periodic_check(interval=10)  # Check every 10s
-    while True:
-        time.sleep(1)
+    if sys.argv[1] == "start":
+        config_path = sys.argv[2]
+        with open(config_path, "r") as f:
+            config = json.load(f)
+        monitor = StatusMonitor(config["url"], config["slug"], config["services"], config.get("pin_mode", "BCM"))
+        #monitor._run_periodic(interval=10)  # Initial run
+        monitor.start_periodic_check(interval=config.get("interval", 10))  # Check every 10s
+        while True:
+            time.sleep(1)
+    if sys.argv[1] == "service":
+        pass 
 
     # Press Ctrl+C to exit or call monitor.stop_periodic_check()
 
-# run on program exit
-GPIO.cleanup()
+    # run on program exit
+    GPIO.cleanup()

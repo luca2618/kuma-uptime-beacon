@@ -3,7 +3,8 @@ import requests
 import threading
 import time
 from typing import Any, Dict, Union
-import dotenv
+import signal, sys, time, logging
+import os
 
 import sys
 
@@ -11,6 +12,31 @@ try:
     import RPi.GPIO as GPIO
 except ImportError:
     import dummy.GPIO as GPIO
+
+
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s %(levelname)s %(message)s")
+stop = False
+
+def handle_sigterm(*_):
+    global stop
+    logging.info("Received SIGTERM, shutting down...")
+    stop = True
+
+signal.signal(signal.SIGTERM, handle_sigterm)
+signal.signal(signal.SIGINT, handle_sigterm)
+
+def run():
+    logging.info("Service started")
+    while not stop:
+        # do work here
+        time.sleep(1)
+    logging.info("Service stopped")
+
+def check_service_status():
+    pass
+
+
 
 
 
@@ -38,6 +64,7 @@ class StatusMonitor:
     def fetch_status_page(self) -> None:
         """Fetch and parse monitor name→id mapping."""
         response = requests.get(f"{self.base_url}/api/status-page/{self.slug}")
+        print(f"{self.base_url}/api/status-page/{self.slug}")
         response.raise_for_status()
         data = response.json()
 
@@ -95,7 +122,7 @@ class StatusMonitor:
     def update_gpio(self) -> None:
         """Setup GPIO pins for services."""
         for service in self.services:
-            if service.get("enabled", False):
+            if service.get("enabled", True):
                 service_id = service.get("id") or self.name_to_id.get(service["name"])
                 pin = service["pin"]
                 if self.is_up(service_id):
@@ -107,18 +134,22 @@ class StatusMonitor:
 
 # Example usage:
 if __name__ == "__main__":
-    dotenv.load_dotenv()
     if sys.argv[1] == "start":
         config_path = sys.argv[2]
         with open(config_path, "r") as f:
             config = json.load(f)
+        print(config)
         monitor = StatusMonitor(config["url"], config["slug"], config["services"], config.get("pin_mode", "BCM"))
         #monitor._run_periodic(interval=10)  # Initial run
         monitor.start_periodic_check(interval=config.get("interval", 10))  # Check every 10s
-        while True:
-            time.sleep(1)
+        run()
     if sys.argv[1] == "service":
-        pass 
+        #path to current python installation used
+        python_path = sys.executable
+        #path to this script
+        script_path = os.path.abspath(__file__)
+        print(script_path)
+        print(python_path)
 
     # Press Ctrl+C to exit or call monitor.stop_periodic_check()
 

@@ -1,11 +1,17 @@
 def setmode(mode):
-    pass
+    print(f"GPIO setmode({mode}) called")
 def setup(pin, direction):
-    pass
+    print(f"GPIO setup(pin={pin}, direction={direction}) called")
 def input(pin):
+    print(f"GPIO input(pin={pin}) called")
     return False # Default return value
 def output(pin, value):
-    pass
+    print(f"GPIO output(pin={pin}, value={value}) called")
 def cleanup():
-    pass
+    print("GPIO cleanup() called")
+
+BCM = "BCM"
+BOARD = "BOARD"
+OUT = "OUT"
+IN = "IN"
 # Add other functions as needed

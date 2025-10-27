@@ -147,8 +147,21 @@ class StatusMonitor:
             GPIO.setmode(GPIO.BOARD)
         
 
-        for service in self.services:
-            GPIO.setup(service["pin"], GPIO.OUT)
+        for index, service in enumerate(self.services):
+            pin_list = self._normalize_pins(service["pin"])
+            self.services[index]["pin"] = pin_list
+            for pin in pin_list:
+                GPIO.setup(pin, GPIO.OUT)
+
+    def _normalize_pins(self, pin_value: Union[int, list]) -> list:
+        if isinstance(pin_value, int):
+            return [pin_value]
+        if isinstance(pin_value, (list, tuple, set)):
+            pins = [int(pin) for pin in pin_value]
+            if not pins:
+                raise ValueError("Service pin list cannot be empty")
+            return pins
+        raise TypeError("Service pin must be an int or a collection of ints")
 
     def fetch_status_page(self) -> None:
         """Fetch and parse monitor name→id mapping."""
@@ -242,12 +255,13 @@ class StatusMonitor:
             if display_name not in status_dict:
                 continue
 
-            pin = service["pin"]
+            pins = service["pin"]
             desired_high = status_dict[display_name]
             if service.get("reverse", False):
                 desired_high = not desired_high
             # reverse allows inverted signaling without touching wiring
-            GPIO.output(pin, GPIO.HIGH if desired_high else GPIO.LOW)
+            for pin in pins:
+                GPIO.output(pin, GPIO.HIGH if desired_high else GPIO.LOW)
                 
 
 

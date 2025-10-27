@@ -6,7 +6,7 @@
     "services": [
         {
             "name": "kuma-uptime-beacon",
-            "pin": 1,
+            "pin": [1, 4],
             "reverse": false
         },
         {

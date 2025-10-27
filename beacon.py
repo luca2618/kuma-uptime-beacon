@@ -17,6 +17,7 @@ try:
     import RPi.GPIO as GPIO
 except ImportError:
     import dummy.GPIO as GPIO
+    print("RPi.GPIO not found; using dummy GPIO module.")
 
 
 logging.basicConfig(level=logging.INFO,

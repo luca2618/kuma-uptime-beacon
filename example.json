@@ -7,17 +7,16 @@
         {
             "name": "kuma-uptime-beacon",
             "pin": 1,
-            "enabled": true
+            "reverse": false
         },
         {
             "name": "another-service",
             "pin": 2,
-            "enabled": false
+            "reverse": true
         },
         {
             "id": 3,
-            "pin": 3,
-            "enabled": true
+            "pin": 3
         }
     ]
 }

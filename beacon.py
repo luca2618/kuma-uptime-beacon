@@ -9,7 +9,7 @@ import threading
 import time
 from getpass import getuser
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional, Union
 
 import requests
 
@@ -178,7 +178,28 @@ class StatusMonitor:
     def check_all(self) -> Dict[str, bool]:
         """Return dict of monitor name → up/down (True/False)."""
         self.fetch_heartbeat()
-        return {name: self.is_up(id_) for name, id_ in self.name_to_id.items()}
+        heartbeat_list = self.heartbeat_data.get("heartbeatList", {})
+        status_map: Dict[str, bool] = {}
+
+        for service in self.services:
+            service_id = service.get("id") or self.name_to_id.get(service.get("name") or "")
+            if service_id is None:
+                continue
+
+            key = str(service_id)
+            if key not in heartbeat_list:
+                continue
+
+            display_name = service.get("name") or self._monitor_name_for_id(service_id) or key
+            status_map[display_name] = self.is_up(service_id)
+
+        return status_map
+
+    def _monitor_name_for_id(self, monitor_id: Union[int, str]) -> Union[str, None]:
+        for name, mapped_id in self.name_to_id.items():
+            if str(mapped_id) == str(monitor_id):
+                return name
+        return None
 
     def start_periodic_check(self, interval: int = 30) -> None:
         """Start background periodic check every `interval` seconds."""
@@ -194,9 +215,11 @@ class StatusMonitor:
         while not self._stop_event.is_set():
             try:
                 status_dict = self.check_all()
-                print(f"\n[STATUS UPDATE] ({time.strftime('%H:%M:%S')})")
-                for name, status in status_dict.items():
-                    print(f"{name}: {'UP' if status else 'DOWN'}")
+                self.update_gpio(status_dict)
+                if status_dict:
+                    print(f"\n[STATUS UPDATE] ({time.strftime('%H:%M:%S')})")
+                    for name, status in status_dict.items():
+                        print(f"{name}: {'UP' if status else 'DOWN'}")
             except Exception as e:
                 print(f"Error during check: {e}")
             time.sleep(interval)
@@ -208,16 +231,23 @@ class StatusMonitor:
             self._thread.join()
             self._thread = None
 
-    def update_gpio(self) -> None:
-        """Setup GPIO pins for services."""
+    def update_gpio(self, status_dict: Optional[Dict[str, bool]] = None) -> None:
+        """Apply GPIO pin levels for services included in the status map."""
+        if status_dict is None:
+            status_dict = self.check_all()
+
         for service in self.services:
-            if service.get("enabled", True):
-                service_id = service.get("id") or self.name_to_id.get(service["name"])
-                pin = service["pin"]
-                if self.is_up(service_id):
-                    GPIO.output(pin, GPIO.HIGH)
-                else:
-                    GPIO.output(pin, GPIO.LOW)
+            service_id = service.get("id") or self.name_to_id.get(service.get("name") or "")
+            display_name = service.get("name") or self._monitor_name_for_id(service_id) or str(service_id)
+            if display_name not in status_dict:
+                continue
+
+            pin = service["pin"]
+            desired_high = status_dict[display_name]
+            if service.get("reverse", False):
+                desired_high = not desired_high
+            # reverse allows inverted signaling without touching wiring
+            GPIO.output(pin, GPIO.HIGH if desired_high else GPIO.LOW)
                 
 
 
